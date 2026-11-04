@@ -177,11 +177,11 @@ class LoggingAndPowerShellDiagnosticsTests(unittest.TestCase):
     def test_powershell_error_preserves_first_2000_characters(self):
         diagnostic = "Initial PowerShell failure context. " + ("detail " * 500)
         completed = SimpleNamespace(returncode=1, stderr=diagnostic, stdout="")
-        with mock.patch.object(app, "require_windows"), \\
-             mock.patch.object(app, "_powershell_executable", return_value=Path("powershell.exe")), \\
-             mock.patch.object(app.subprocess, "run", return_value=completed):
-            with self.assertRaises(app.PowerShellError) as raised:
-                app.run_powershell({"mode": "check"})
+        with mock.patch.object(app, "require_windows"):
+            with mock.patch.object(app, "_powershell_executable", return_value=Path("powershell.exe")):
+                with mock.patch.object(app.subprocess, "run", return_value=completed):
+                    with self.assertRaises(app.PowerShellError) as raised:
+                        app.run_powershell({"mode": "check"})
         self.assertEqual(str(raised.exception), diagnostic[:2000])
 
 
