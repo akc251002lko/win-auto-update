@@ -488,7 +488,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = execute_install(args.identities, args.accept_eula, args.execute)
         print(json.dumps(result, indent=2, sort_keys=True))
         if result.get("reboot_required"):
-            print("\\nA restart is required. WinAutoUpdate will not restart the computer automatically.")
+            print("\nA restart is required. WinAutoUpdate will not restart the computer automatically.")
         return install_exit_code(result)
     except UpdateManagerError as exc:
         LOGGER.error("%s", exc)
@@ -496,7 +496,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
     except KeyboardInterrupt:
         LOGGER.warning("Interrupted by user.")
-        print("\\nInterrupted.", file=sys.stderr)
+        print("\nInterrupted.", file=sys.stderr)
         return 130
     finally:
         OPERATION_ID.reset(operation_token)
