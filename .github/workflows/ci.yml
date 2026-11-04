@@ -1,0 +1,26 @@
+name: Windows CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Python \${{ matrix.python-version }} unit tests
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.12", "3.14"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: \${{ matrix.python-version }}
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v

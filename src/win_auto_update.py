@@ -5,16 +5,13 @@ from __future__ import annotations
 
 import argparse
 import ctypes
-import datetime as dt
 import json
 import logging
 import os
-import platform
 import subprocess
 import sys
 import tempfile
-import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -112,7 +109,7 @@ if ($inputData.mode -eq 'status') {
     }
     Emit ([PSCustomObject]@{
         computer = $env:COMPUTERNAME
-        os_caption = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        os_caption = (Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
         services = @($services)
         agent_version = [string]$session.ClientApplicationID
     })
@@ -281,6 +278,8 @@ def run_powershell(payload: Dict[str, Any]) -> Any:
 def parse_updates(payload: Any) -> List[UpdateRecord]:
     if isinstance(payload, dict):
         payload = [payload]
+    if payload is None:
+        return []
     if not isinstance(payload, list):
         raise PowerShellError("Unexpected update-list response.")
     records: List[UpdateRecord] = []
