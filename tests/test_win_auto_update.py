@@ -70,6 +70,22 @@ class InstallSafetyTests(unittest.TestCase):
             with self.assertRaises(app.UpdateSelectionError):
                 app.execute_install(["abc:1"], False, True)
 
+    def test_install_exit_code_accepts_complete_success(self):
+        self.assertEqual(app.install_exit_code({
+            "install_result_code": 2,
+            "updates": [{"result_code": 2}],
+        }), 0)
+
+    def test_install_exit_code_rejects_partial_update_failure(self):
+        self.assertEqual(app.install_exit_code({
+            "install_result_code": 3,
+            "updates": [{"result_code": 2}, {"result_code": 4}],
+        }), 1)
+
+    def test_install_exit_code_rejects_malformed_response(self):
+        with self.assertRaises(app.PowerShellError):
+            app.install_exit_code({"install_result_code": "success", "updates": []})
+
     def test_execution_passes_exact_identity_to_agent(self):
         expected = {"install_result_code": 2, "reboot_required": False}
         with mock.patch.object(app, "is_admin", return_value=True), \
