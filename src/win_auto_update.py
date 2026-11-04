@@ -256,9 +256,7 @@ def _powershell_executable() -> Path:
 
 def run_powershell(payload: Dict[str, Any]) -> Any:
     require_windows()
-    powershell = os.environ.get("WINDIR", r"C:\Windows") + r"\System32\WindowsPowerShell\v1.0\powershell.exe"
-    if not Path(powershell).is_file():
-        raise PowerShellError("Windows PowerShell 5.1 was not found.")
+    powershell = str(_powershell_executable())
     script_path: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(
