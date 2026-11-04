@@ -225,6 +225,35 @@ def is_admin() -> bool:
         return False
 
 
+def _powershell_executable() -> Path:
+    """Resolve native Windows PowerShell without trusting PATH or WINDIR."""
+    if os.name != "nt":
+        raise UnsupportedPlatformError("Windows PowerShell requires Windows.")
+    kernel32 = ctypes.windll.kernel32
+    windows_buffer = ctypes.create_unicode_buffer(32768)
+    windows_length = kernel32.GetWindowsDirectoryW(windows_buffer, len(windows_buffer))
+    if windows_length == 0 or windows_length >= len(windows_buffer):
+        raise PowerShellError("Unable to resolve the Windows installation directory.")
+    is_wow64 = ctypes.c_bool(False)
+    try:
+        wow64 = bool(kernel32.IsWow64Process(
+            kernel32.GetCurrentProcess(), ctypes.byref(is_wow64)
+        )) and is_wow64.value
+    except AttributeError:
+        wow64 = False
+    system_alias = "Sysnative" if wow64 else "System32"
+    executable = (
+        Path(windows_buffer.value)
+        / system_alias
+        / "WindowsPowerShell"
+        / "v1.0"
+        / "powershell.exe"
+    )
+    if not executable.is_file():
+        raise PowerShellError("Windows PowerShell 5.1 was not found in the Windows system directory.")
+    return executable
+
+
 def run_powershell(payload: Dict[str, Any]) -> Any:
     require_windows()
     powershell = os.environ.get("WINDIR", r"C:\Windows") + r"\System32\WindowsPowerShell\v1.0\powershell.exe"
