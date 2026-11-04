@@ -141,7 +141,7 @@ if ($inputData.mode -eq 'install') {
     $downloader = $session.CreateUpdateDownloader()
     $downloader.Updates = $selected
     $downloadResult = $downloader.Download()
-    if ([int]$downloadResult.ResultCode -ge 3) {
+    if ([int]$downloadResult.ResultCode -ne 2) {
         throw "Download failed with Windows Update result code $($downloadResult.ResultCode)."
     }
     $installer = $session.CreateUpdateInstaller()
@@ -338,6 +338,31 @@ def execute_install(identities: Sequence[str], accept_eula: bool, execute: bool)
     })
 
 
+def install_exit_code(result: Any) -> int:
+    """Validate an installation response and report partial or failed updates."""
+    if not isinstance(result, dict):
+        raise PowerShellError("Windows Update Agent returned an invalid installation response.")
+    if result.get("status") == "planned":
+        return 0
+    aggregate = result.get("install_result_code")
+    outcomes = result.get("updates")
+    if isinstance(aggregate, bool) or not isinstance(aggregate, int):
+        raise PowerShellError("Windows Update Agent omitted a valid installation result code.")
+    if isinstance(outcomes, dict):
+        outcomes = [outcomes]
+    if not isinstance(outcomes, list):
+        raise PowerShellError("Windows Update Agent returned invalid per-update results.")
+    for outcome in outcomes:
+        if not isinstance(outcome, dict):
+            raise PowerShellError("Windows Update Agent returned an invalid per-update result.")
+        result_code = outcome.get("result_code")
+        if isinstance(result_code, bool) or not isinstance(result_code, int):
+            raise PowerShellError("Windows Update Agent omitted a per-update result code.")
+        if result_code != 2:
+            return 1
+    return 1 if aggregate != 2 else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Inspect and selectively install updates using the built-in Windows Update Agent."
@@ -379,7 +404,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         if result.get("reboot_required"):
             print("\nA restart is required. WinAutoUpdate will not restart the computer automatically.")
-        return 1 if int(result.get("install_result_code", 0)) >= 3 else 0
+        return install_exit_code(result)
     except UpdateManagerError as exc:
         LOGGER.error("%s", exc)
         print("ERROR: " + str(exc), file=sys.stderr)
