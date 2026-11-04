@@ -2,6 +2,7 @@
 
 import sys
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -114,6 +115,31 @@ class PlatformAndCliTests(unittest.TestCase):
         with mock.patch.object(app.os, "name", "posix"):
             with self.assertRaises(app.UnsupportedPlatformError):
                 app.require_windows()
+
+
+    @mock.patch("win_auto_update.os.name", "nt")
+    @mock.patch("win_auto_update.sys.getwindowsversion")
+    def test_windows_7_without_service_pack_one_is_rejected(self, get_version):
+        get_version.return_value = SimpleNamespace(
+            major=6, minor=1, service_pack="", service_pack_major=0
+        )
+        with self.assertRaises(app.UnsupportedPlatformError):
+            app.require_windows()
+
+    @mock.patch("win_auto_update.os.name", "nt")
+    @mock.patch("win_auto_update.sys.getwindowsversion")
+    def test_windows_7_service_pack_one_is_supported(self, get_version):
+        get_version.return_value = SimpleNamespace(
+            major=6, minor=1, service_pack="Service Pack 1", service_pack_major=1
+        )
+        app.require_windows()
+
+    @mock.patch("win_auto_update.os.name", "nt")
+    @mock.patch("win_auto_update.sys.getwindowsversion")
+    def test_windows_vista_is_rejected(self, get_version):
+        get_version.return_value = SimpleNamespace(major=6, minor=0)
+        with self.assertRaises(app.UnsupportedPlatformError):
+            app.require_windows()
 
     def test_parser_requires_update_identity_for_install(self):
         with self.assertRaises(SystemExit):
