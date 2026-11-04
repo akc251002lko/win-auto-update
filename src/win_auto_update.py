@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextvars
 import ctypes
 import json
 import logging
@@ -11,6 +12,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -169,7 +171,34 @@ throw "Unknown operation: $($inputData.mode)"
 """
 
 
+OPERATION_ID = contextvars.ContextVar("win_auto_update_operation_id", default="-")
+
+
+class OperationIdFilter(logging.Filter):
+    """Add the active CLI operation identifier to each log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.operation_id = OPERATION_ID.get()
+        return True
+
+
 def configure_logging() -> Optional[Path]:
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s [operation_id=%(operation_id)s]: %(message)s"
+    )
+    LOGGER.setLevel(logging.INFO)
+    LOGGER.propagate = False
+    if LOGGER.handlers:
+        for handler in LOGGER.handlers:
+            if not any(isinstance(item, OperationIdFilter) for item in handler.filters):
+                handler.addFilter(OperationIdFilter())
+            handler.setFormatter(formatter)
+        return next(
+            (Path(handler.baseFilename) for handler in LOGGER.handlers
+             if isinstance(handler, logging.FileHandler)),
+            None,
+        )
+
     candidates: List[Path] = []
     app_data = os.environ.get("LOCALAPPDATA")
     if app_data:
@@ -179,24 +208,23 @@ def configure_logging() -> Optional[Path]:
         try:
             directory.mkdir(parents=True, exist_ok=True)
             path = directory / "win-auto-update.log"
-            logging.basicConfig(
-                level=logging.INFO,
-                format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-                handlers=[
-                    logging.FileHandler(str(path), encoding="utf-8"),
-                    logging.StreamHandler(sys.stderr),
-                ],
-            )
+            handlers: List[logging.Handler] = [
+                logging.FileHandler(str(path), encoding="utf-8"),
+                logging.StreamHandler(sys.stderr),
+            ]
+            for handler in handlers:
+                handler.addFilter(OperationIdFilter())
+                handler.setFormatter(formatter)
+                LOGGER.addHandler(handler)
             return path
         except OSError:
             continue
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        stream=sys.stderr,
-    )
-    return None
 
+    handler = logging.StreamHandler(sys.stderr)
+    handler.addFilter(OperationIdFilter())
+    handler.setFormatter(formatter)
+    LOGGER.addHandler(handler)
+    return None
 
 def require_windows() -> None:
     if os.name != "nt":
@@ -283,7 +311,7 @@ def run_powershell(payload: Dict[str, Any]) -> Any:
         )
         if completed.returncode != 0:
             message = (completed.stderr or completed.stdout or "Unknown PowerShell failure").strip()
-            raise PowerShellError(message[-4000:])
+            raise PowerShellError(message[:2000])
         output = (completed.stdout or "").strip()
         if not output:
             raise PowerShellError("Windows Update Agent returned an empty response.")
@@ -438,9 +466,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    log_path = configure_logging()
-    LOGGER.info("Starting %s %s; log=%s", APP_NAME, VERSION, log_path or "stderr")
+    operation_token = OPERATION_ID.set(uuid.uuid4().hex[:12])
     try:
+        log_path = configure_logging()
+        LOGGER.info("Starting %s %s; log=%s", APP_NAME, VERSION, log_path or "stderr")
         args = build_parser().parse_args(argv)
         require_windows()
         if args.command is None:
@@ -459,7 +488,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = execute_install(args.identities, args.accept_eula, args.execute)
         print(json.dumps(result, indent=2, sort_keys=True))
         if result.get("reboot_required"):
-            print("\nA restart is required. WinAutoUpdate will not restart the computer automatically.")
+            print("\\nA restart is required. WinAutoUpdate will not restart the computer automatically.")
         return install_exit_code(result)
     except UpdateManagerError as exc:
         LOGGER.error("%s", exc)
@@ -467,8 +496,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
     except KeyboardInterrupt:
         LOGGER.warning("Interrupted by user.")
-        print("\nInterrupted.", file=sys.stderr)
+        print("\\nInterrupted.", file=sys.stderr)
         return 130
+    finally:
+        OPERATION_ID.reset(operation_token)
 
 
 if __name__ == "__main__":
