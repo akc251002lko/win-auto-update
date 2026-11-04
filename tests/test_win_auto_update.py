@@ -82,6 +82,7 @@ class InstallSafetyTests(unittest.TestCase):
         self.assertEqual(app.install_exit_code({
             "download_result_code": 2,
             "install_result_code": 2,
+            "reboot_required": False,
             "updates": [{"result_code": 2}],
         }), 0)
 
@@ -89,12 +90,13 @@ class InstallSafetyTests(unittest.TestCase):
         self.assertEqual(app.install_exit_code({
             "download_result_code": 2,
             "install_result_code": 3,
+            "reboot_required": False,
             "updates": [{"result_code": 2}, {"result_code": 4}],
         }), 1)
 
     def test_install_exit_code_rejects_malformed_response(self):
         with self.assertRaises(app.PowerShellError):
-            app.install_exit_code({"download_result_code": 2, "install_result_code": "success", "updates": [{"result_code": 2}]})
+            app.install_exit_code({"download_result_code": 2, "install_result_code": "success", "reboot_required": False, "updates": [{"result_code": 2}]})
 
     def test_execution_passes_exact_identity_to_agent(self):
         expected = {"install_result_code": 2, "reboot_required": False}
