@@ -44,6 +44,14 @@ class ParseUpdateTests(unittest.TestCase):
         with self.assertRaises(app.PowerShellError):
             app.parse_updates([{"update_id": "abc", "revision": 1, "categories": "Security"}])
 
+    def test_string_boolean_flags_are_rejected(self):
+        with self.assertRaises(app.PowerShellError):
+            app.parse_updates([{"update_id": "abc", "revision": 1, "downloaded": "false"}])
+
+    def test_boolean_revision_is_rejected(self):
+        with self.assertRaises(app.PowerShellError):
+            app.parse_updates([{"update_id": "abc", "revision": True}])
+
 
 class InstallSafetyTests(unittest.TestCase):
     def test_preview_never_calls_powershell(self):
@@ -72,19 +80,21 @@ class InstallSafetyTests(unittest.TestCase):
 
     def test_install_exit_code_accepts_complete_success(self):
         self.assertEqual(app.install_exit_code({
+            "download_result_code": 2,
             "install_result_code": 2,
             "updates": [{"result_code": 2}],
         }), 0)
 
     def test_install_exit_code_rejects_partial_update_failure(self):
         self.assertEqual(app.install_exit_code({
+            "download_result_code": 2,
             "install_result_code": 3,
             "updates": [{"result_code": 2}, {"result_code": 4}],
         }), 1)
 
     def test_install_exit_code_rejects_malformed_response(self):
         with self.assertRaises(app.PowerShellError):
-            app.install_exit_code({"install_result_code": "success", "updates": []})
+            app.install_exit_code({"download_result_code": 2, "install_result_code": "success", "updates": [{"result_code": 2}]})
 
     def test_execution_passes_exact_identity_to_agent(self):
         expected = {"install_result_code": 2, "reboot_required": False}
