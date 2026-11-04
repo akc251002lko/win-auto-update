@@ -361,6 +361,9 @@ def install_exit_code(result: Any) -> int:
         raise PowerShellError("Windows Update Agent did not confirm successful downloads.")
     if isinstance(aggregate, bool) or not isinstance(aggregate, int):
         raise PowerShellError("Windows Update Agent omitted a valid installation result code.")
+    reboot_required = result.get("reboot_required")
+    if not isinstance(reboot_required, bool):
+        raise PowerShellError("Windows Update Agent omitted reboot status.")
     if isinstance(outcomes, dict):
         outcomes = [outcomes]
     if not isinstance(outcomes, list) or not outcomes:
