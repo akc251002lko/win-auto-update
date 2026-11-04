@@ -275,17 +275,27 @@ def parse_updates(payload: Any) -> List[UpdateRecord]:
         if not isinstance(item, dict):
             raise PowerShellError("Update-list response contains an invalid record.")
         try:
-            revision = int(item.get("revision", 0))
+            raw_revision = item.get("revision", 0)
+            if isinstance(raw_revision, bool):
+                raise TypeError("revision must be an integer")
+            revision = int(raw_revision)
             raw_categories = item.get("categories", [])
+            downloaded = item.get("downloaded", False)
+            requires_user_input = item.get("requires_user_input", False)
             if not isinstance(raw_categories, list):
                 raise TypeError("categories must be a list")
+            if not isinstance(downloaded, bool) or not isinstance(requires_user_input, bool):
+                raise TypeError("update flags must be booleans")
+            raw_update_id = item.get("update_id", "")
+            if not isinstance(raw_update_id, str):
+                raise TypeError("update_id must be a string")
             record = UpdateRecord(
-                update_id=str(item.get("update_id", "")),
+                update_id=raw_update_id,
                 revision=revision,
                 title=str(item.get("title", "Untitled update")),
                 description=str(item.get("description", "")),
-                downloaded=bool(item.get("downloaded", False)),
-                requires_user_input=bool(item.get("requires_user_input", False)),
+                downloaded=downloaded,
+                requires_user_input=requires_user_input,
                 reboot_behavior=str(item.get("reboot_behavior", "unknown")),
                 categories=[str(value) for value in raw_categories],
             )
@@ -344,14 +354,17 @@ def install_exit_code(result: Any) -> int:
         raise PowerShellError("Windows Update Agent returned an invalid installation response.")
     if result.get("status") == "planned":
         return 0
+    download_code = result.get("download_result_code")
     aggregate = result.get("install_result_code")
     outcomes = result.get("updates")
+    if isinstance(download_code, bool) or not isinstance(download_code, int) or download_code != 2:
+        raise PowerShellError("Windows Update Agent did not confirm successful downloads.")
     if isinstance(aggregate, bool) or not isinstance(aggregate, int):
         raise PowerShellError("Windows Update Agent omitted a valid installation result code.")
     if isinstance(outcomes, dict):
         outcomes = [outcomes]
-    if not isinstance(outcomes, list):
-        raise PowerShellError("Windows Update Agent returned invalid per-update results.")
+    if not isinstance(outcomes, list) or not outcomes:
+        raise PowerShellError("Windows Update Agent returned invalid or empty per-update results.")
     for outcome in outcomes:
         if not isinstance(outcome, dict):
             raise PowerShellError("Windows Update Agent returned an invalid per-update result.")
