@@ -89,10 +89,6 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and the security mode
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Community
-
-Join the Telegram community: https://t.me/githubakc251002lko
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
