@@ -92,3 +92,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+---
+
+**Maintained by [Arun Kumar](https://github.com/akc251002lko).**
