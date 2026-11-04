@@ -162,5 +162,28 @@ class PlatformAndCliTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
 
 
+class LoggingAndPowerShellDiagnosticsTests(unittest.TestCase):
+    def test_log_record_contains_active_operation_id(self):
+        token = app.OPERATION_ID.set("operation-test-456")
+        try:
+            record = app.logging.LogRecord(
+                "test", app.logging.INFO, __file__, 1, "message", (), None
+            )
+            app.OperationIdFilter().filter(record)
+            self.assertEqual(record.operation_id, "operation-test-456")
+        finally:
+            app.OPERATION_ID.reset(token)
+
+    def test_powershell_error_preserves_first_2000_characters(self):
+        diagnostic = "Initial PowerShell failure context. " + ("detail " * 500)
+        completed = SimpleNamespace(returncode=1, stderr=diagnostic, stdout="")
+        with mock.patch.object(app, "require_windows"), \\
+             mock.patch.object(app, "_powershell_executable", return_value=Path("powershell.exe")), \\
+             mock.patch.object(app.subprocess, "run", return_value=completed):
+            with self.assertRaises(app.PowerShellError) as raised:
+                app.run_powershell({"mode": "check"})
+        self.assertEqual(str(raised.exception), diagnostic[:2000])
+
+
 if __name__ == "__main__":
     unittest.main()
