@@ -141,6 +141,17 @@ class PlatformAndCliTests(unittest.TestCase):
         with self.assertRaises(app.UnsupportedPlatformError):
             app.require_windows()
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell integration test")
+    def test_powershell_resolves_from_windows_system_directory(self):
+        resolved = app._powershell_executable()
+        self.assertTrue(resolved.is_absolute())
+        self.assertEqual(resolved.name.lower(), "powershell.exe")
+        self.assertTrue(resolved.is_file())
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows version integration test")
+    def test_current_windows_version_is_supported(self):
+        app.require_windows()
+
     def test_parser_requires_update_identity_for_install(self):
         with self.assertRaises(SystemExit):
             app.build_parser().parse_args(["install"])
