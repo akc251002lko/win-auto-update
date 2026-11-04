@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional, Sequence
 
 APP_NAME = "WinAutoUpdate"
 VERSION = "1.0.0"
-USER_AGENT = "WinAutoUpdate/1.0 (+https://github.com/akc251002lko/win-auto-update)"
 COMMAND_TIMEOUT_SECONDS = 60 * 60
 
 LOGGER = logging.getLogger(APP_NAME)
@@ -53,15 +52,6 @@ class UpdateRecord:
     requires_user_input: bool
     reboot_behavior: str
     categories: List[str]
-
-
-@dataclass(frozen=True)
-class OperationResult:
-    operation: str
-    status: str
-    started_at: str
-    duration_seconds: float
-    details: Dict[str, Any]
 
 
 POWERSHELL_BRIDGE = r"""
@@ -111,7 +101,7 @@ if ($inputData.mode -eq 'status') {
         computer = $env:COMPUTERNAME
         os_caption = (Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
         services = @($services)
-        agent_version = [string]$session.ClientApplicationID
+        client_application_id = [string]$session.ClientApplicationID
     })
     exit 0
 }
@@ -124,7 +114,6 @@ if ($inputData.mode -eq 'install') {
     $requested = @($inputData.updates)
     if ($requested.Count -eq 0) { throw 'No update identities were supplied.' }
     $selected = New-Object -ComObject Microsoft.Update.UpdateColl
-    $matched = @()
     foreach ($identity in $requested) {
         $parts = $identity -split ':', 2
         if ($parts.Count -ne 2) { throw "Invalid update identity: $identity" }
@@ -143,7 +132,6 @@ if ($inputData.mode -eq 'install') {
                     $u.AcceptEula()
                 }
                 [void]$selected.Add($u)
-                $matched += [PSCustomObject]@{ update_id = $parts[0]; revision = [int]$parts[1]; title = $u.Title }
                 $found = $true
                 break
             }
@@ -285,17 +273,27 @@ def parse_updates(payload: Any) -> List[UpdateRecord]:
     records: List[UpdateRecord] = []
     for item in payload:
         if not isinstance(item, dict):
-            continue
-        records.append(UpdateRecord(
-            update_id=str(item.get("update_id", "")),
-            revision=int(item.get("revision", 0)),
-            title=str(item.get("title", "Untitled update")),
-            description=str(item.get("description", "")),
-            downloaded=bool(item.get("downloaded", False)),
-            requires_user_input=bool(item.get("requires_user_input", False)),
-            reboot_behavior=str(item.get("reboot_behavior", "unknown")),
-            categories=[str(value) for value in item.get("categories", [])],
-        ))
+            raise PowerShellError("Update-list response contains an invalid record.")
+        try:
+            revision = int(item.get("revision", 0))
+            raw_categories = item.get("categories", [])
+            if not isinstance(raw_categories, list):
+                raise TypeError("categories must be a list")
+            record = UpdateRecord(
+                update_id=str(item.get("update_id", "")),
+                revision=revision,
+                title=str(item.get("title", "Untitled update")),
+                description=str(item.get("description", "")),
+                downloaded=bool(item.get("downloaded", False)),
+                requires_user_input=bool(item.get("requires_user_input", False)),
+                reboot_behavior=str(item.get("reboot_behavior", "unknown")),
+                categories=[str(value) for value in raw_categories],
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise PowerShellError("Update-list response contains invalid field values.") from exc
+        if not record.update_id or record.revision < 1:
+            raise PowerShellError("Update-list response contains an invalid update identity.")
+        records.append(record)
     return records
 
 
