@@ -32,6 +32,18 @@ class ParseUpdateTests(unittest.TestCase):
         with self.assertRaises(app.PowerShellError):
             app.parse_updates("not-an-array")
 
+    def test_malformed_update_fields_raise_domain_error(self):
+        with self.assertRaises(app.PowerShellError):
+            app.parse_updates([{"update_id": "abc", "revision": "invalid"}])
+
+    def test_missing_update_identity_is_rejected(self):
+        with self.assertRaises(app.PowerShellError):
+            app.parse_updates([{"update_id": "", "revision": 1}])
+
+    def test_non_list_categories_are_rejected(self):
+        with self.assertRaises(app.PowerShellError):
+            app.parse_updates([{"update_id": "abc", "revision": 1, "categories": "Security"}])
+
 
 class InstallSafetyTests(unittest.TestCase):
     def test_preview_never_calls_powershell(self):
