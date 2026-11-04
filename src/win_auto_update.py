@@ -201,6 +201,19 @@ def configure_logging() -> Optional[Path]:
 def require_windows() -> None:
     if os.name != "nt":
         raise UnsupportedPlatformError("WinAutoUpdate requires Windows 7 SP1 or later.")
+    try:
+        version = sys.getwindowsversion()
+        if version.major == 6 and version.minor == 1:
+            service_pack = str(getattr(version, "service_pack", "")).lower()
+            service_pack_major = int(getattr(version, "service_pack_major", 0))
+            if service_pack_major < 1 and "service pack 1" not in service_pack:
+                raise UnsupportedPlatformError("Windows 7 Service Pack 1 is required.")
+            return
+        if (version.major == 6 and version.minor in (2, 3)) or version.major >= 10:
+            return
+        raise UnsupportedPlatformError("WinAutoUpdate requires Windows 7 SP1 or later.")
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        raise UnsupportedPlatformError("Unable to identify a supported Windows version.") from exc
 
 
 def is_admin() -> bool:
