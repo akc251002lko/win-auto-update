@@ -101,9 +101,9 @@ class InstallSafetyTests(unittest.TestCase):
 
     def test_execution_passes_exact_identity_to_agent(self):
         expected = {"install_result_code": 2, "reboot_required": False}
-        with mock.patch.object(app, "is_admin", return_value=True), \
-             mock.patch.object(app, "run_powershell", return_value=expected) as runner:
-            result = app.execute_install(["abc:4"], True, True)
+        with mock.patch.object(app, "is_admin", return_value=True):
+            with mock.patch.object(app, "run_powershell", return_value=expected) as runner:
+                result = app.execute_install(["abc:4"], True, True)
         self.assertEqual(result, expected)
         runner.assert_called_once_with({
             "mode": "install", "updates": ["abc:4"], "accept_eula": True,
